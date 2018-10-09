@@ -1,0 +1,22 @@
+{
+    "name": "lishaoen/think-log",
+    "description": "log package for thinkphp5.1",
+    "license": "Apache-2.0",
+    "minimum-stability": "stable",
+    "version": "1.0.1",
+    "authors": [
+        {
+            "name": "lishaoen",
+            "email": "lishaoenbh@qq.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "lishaoen\\log\\": "src/"
+        }
+    }
+    
+}
