@@ -90,8 +90,14 @@ class Log implements LoggerInterface
             $this->allowWrite = false;
         }
 
-        $this->driver = Loader::factory($type, '\\driver\\', $config);
-
+        $class = false !== strpos($type, '\\') ? $type : '\\driver\\' . ucwords($type);
+        try {
+            if (class_exists($class)) {
+                $this->driver = new $class($config);
+            }
+        } catch (\Exception $e) {
+            throw new Exception('class not exists:' . $class, $class);
+        }
         return $this;
     }
 
