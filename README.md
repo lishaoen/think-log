@@ -1,1 +1,45 @@
 # think-log
+
+写入LOG日志，支持文件。
+
+安装
+~~~
+composer require lishaoen/think-log
+~~~
+
+用法：
+~~~php
+$log = new \lishaoen\log\Log;
+$log->init(
+	$config = [
+		// 日志记录方式，内置 file socket 支持扩展
+        'type'         => 'File',
+        // 日志保存目录
+        'path'         => './runtime/logs/',
+        //日志的时间格式，默认是` c `
+    	'time_format'   =>'Y-m-d H:i:s',
+    	// 是否JSON格式记录
+        'json'         => false,
+        //单个日志文件的大小限制，超过后会自动记录到第二个文件
+    	'file_size'     =>2097152,
+    	//是否关闭日志写入
+    	'close'        => true,
+    	//允许日志写入的授权key
+    	'allow_key'    => '',
+        // 日志记录级别
+        'level'        => [],
+        //是否单一文件日志
+        'single'      => false,
+        //独立记录的日志级别
+        'apart_level' => [],
+        //最大日志文件数（超过自动清理)
+        'max_files'   => 0,
+	]
+);
+
+$log->record('error info','error');
+$log->error('error info');
+$log->info('log info');
+$log->save();
+~~~
+

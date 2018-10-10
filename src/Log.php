@@ -8,6 +8,8 @@
 // +----------------------------------------------------------------------
 namespace lishaoen\log;
 
+use Exception;
+
 // 实现日志接口
 if (interface_exists('Psr\Log\LoggerInterface')) {
     interface LoggerInterface extends \Psr\Log\LoggerInterface
@@ -83,19 +85,17 @@ class Log implements LoggerInterface
         $type = isset($config['type']) ? $config['type'] : 'File';
 
         $this->config = $config;
-
         unset($config['type']);
 
         if (!empty($config['close'])) {
             $this->allowWrite = false;
         }
 
-        $class = false !== strpos($type, '\\') ? $type : '\\driver\\' . ucwords($type);
-        try {
-            if (class_exists($class)) {
-                $this->driver = new $class($config);
-            }
-        } catch (\Exception $e) {
+        $class = false !== strpos($type, '\\') ? $type : '\\lishaoen\\log\\driver\\' . ucwords($type);
+        
+        if (class_exists($class)) {
+            $this->driver = new $class($config);
+        }else{
             throw new Exception('class not exists:' . $class, $class);
         }
         return $this;
@@ -134,7 +134,6 @@ class Log implements LoggerInterface
 
             $msg = strtr($msg, $replace);
         }
-
         if (PHP_SAPI == 'cli') {
             // 命令行日志实时写入
             $this->write($msg, $type, true);

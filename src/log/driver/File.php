@@ -9,21 +9,28 @@
 namespace lishaoen\log\driver;
 
 /**
- * 本地化调试输出到文件
+ * 本地化输出到文件
  */
 class File
 {
     protected $config = [
+        // 时间记录格式
         'time_format' => ' c ',
+        //是否单一文件日志
         'single'      => false,
+        //// 日志文件大小限制（超出会生成多个文件）
         'file_size'   => 2097152,
+        // 日志储存路径
         'path'        => '',
+        //独立记录的日志级别
         'apart_level' => [],
+        //最大日志文件数（超过自动清理)
         'max_files'   => 0,
+        // 是否JSON格式记录
         'json'        => false,
     ];
 
-    protected $logPath = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR;
+    protected $logPath;
 
     // 实例化并传入参数
     public function __construct($config = [])
@@ -36,7 +43,7 @@ class File
         }
         
         if (empty($this->config['path'])) {
-            $this->config['path'] = $this->logPath . 'log' . DIRECTORY_SEPARATOR;
+            $this->config['path'] = $this->logPath . 'logs' . DIRECTORY_SEPARATOR;
         } elseif (substr($this->config['path'], -1) != DIRECTORY_SEPARATOR) {
             $this->config['path'] .= DIRECTORY_SEPARATOR;
         }
