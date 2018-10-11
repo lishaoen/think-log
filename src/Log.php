@@ -117,6 +117,7 @@ class Log implements LoggerInterface
      * @access public
      * @param  mixed  $msg       日志信息
      * @param  string $type      日志级别
+     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return $this
      */

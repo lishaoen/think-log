@@ -38,9 +38,20 @@ $config = [
 
 $log = new \lishaoen\log\Log($config);
 
-$log->write('error info','error',$log_custom = []);
+$log->write($msg='error info',$type ='error',$log_custom = [], $context = []);
 或
-$log->record('error info','error',$log_custom = [])->save();
-$log->error('error info',$log_custom = [])->save();
+$log->record($msg='error info',$type ='error',$log_custom = [], $context = [])->save();
+$log->error($msg='error info',$log_custom = [],$context = [])->save();
+
+
+方法参数说明：
+
+/**
+ * @param  string $msg       日志信息
+ * @param  string $type      日志级别
+ * @param  array  $log_custom 日志追加自定义数组字段信息
+ * @param  array  $context   替换内容
+ */
+
 ~~~
 
