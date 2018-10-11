@@ -30,20 +30,19 @@ class File
         'json'        => false,
     ];
 
-    protected $logPath;
+    protected $request;
+
 
     // 实例化并传入参数
     public function __construct($config = [])
     {
+        $this->request = new \lishaoen\log\Request();
+        
         if (is_array($config)) {
             $this->config = array_merge($this->config, $config);
         }
-        if(empty($this->logPath)){
-            $this->logPath = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR;
-        }
-        
         if (empty($this->config['path'])) {
-            $this->config['path'] = $this->logPath . 'logs' . DIRECTORY_SEPARATOR;
+            $this->config['path'] = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR;
         } elseif (substr($this->config['path'], -1) != DIRECTORY_SEPARATOR) {
             $this->config['path'] .= DIRECTORY_SEPARATOR;
         }
@@ -53,10 +52,11 @@ class File
      * 日志写入接口
      * @access public
      * @param  array    $log    日志信息
+     * @param  array    $arr_custom 日志追加自定义数组字段信息
      * @param  bool     $append 是否追加请求信息
      * @return bool
      */
-    public function save(array $log = [], $append = false)
+    public function save(array $log = [], $arr_custom = [], $append = false)
     {
         $destination = $this->getMasterLogFile();
 
@@ -64,9 +64,7 @@ class File
         !is_dir($path) && mkdir($path, 0755, true);
 
         $info = [];
-
         foreach ($log as $type => $val) {
-
             foreach ($val as $msg) {
                 if (!is_string($msg)) {
                     $msg = var_export($msg, true);
@@ -79,14 +77,14 @@ class File
                 // 独立记录的日志级别
                 $filename = $this->getApartLevelFile($path, $type);
 
-                $this->write($info[$type], $filename, true, $append);
+                $this->write($info[$type], $filename, $arr_custom, true, $append);
 
                 unset($info[$type]);
             }
         }
 
         if ($info) {
-            return $this->write($info, $destination, false, $append);
+            return $this->write($info, $destination, $arr_custom, false, $append);
         }
 
         return true;
@@ -97,28 +95,31 @@ class File
      * @access protected
      * @param  array     $message 日志信息
      * @param  string    $destination 日志文件
+     * @param  array    $arr_custom 日志追加自定义数组字段信息
      * @param  bool      $apart 是否独立文件写入
      * @param  bool      $append 是否追加请求信息
      * @return bool
      */
-    protected function write($message, $destination, $apart = false, $append = false)
+    protected function write($message, $destination, $log_custom = [], $apart = false, $append = false)
     {
         // 检测日志文件大小，超过配置大小则备份日志文件重新生成
         $this->checkLogSize($destination);
-
         // 日志信息封装
-        $info['timestamp'] = date($this->config['time_format']);
-
         foreach ($message as $type => $msg) {
-            $info[$type] = is_array($msg) ? implode("\r\n", $msg) : $msg;
+            $info['type']     = $type;
+            $info['message']  = is_array($msg) ? implode("|", $msg) : $msg;
+
+            $info[$type]      = is_array($msg) ? implode("|", $msg) : $msg;
         }
 
+        if(!empty($log_custom)){
+            $info = $info + $log_custom;
+        }
         if (PHP_SAPI == 'cli') {
             $message = $this->parseCliLog($info);
         } else {
             $message = $this->parseLog($info);
         }
-
         return error_log($message, 3, $destination);
     }
 
@@ -210,8 +211,8 @@ class File
         if ($this->config['json']) {
             $message = json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\r\n";
         } else {
-            $now = $info['timestamp'];
-            unset($info['timestamp']);
+            $now = $info['date'];
+            unset($info['date']);
 
             $message = implode("\r\n", $info);
 
@@ -229,17 +230,58 @@ class File
      */
     protected function parseLog($info)
     {
-        $requestInfo = [];
-
+        //请求基础信息
+        $request_info = [
+            'date'         => date($this->config['time_format']),
+            'requestid'    => md5(time() + rand(0,9999)),
+            'ip'           => $this->request->ip($type = 0, $adv = true),
+            'domain'       => $this->request->domain($port = true),
+            'host'         => $this->request->host($strict = false),
+            'method'       => $this->request->method($origin = false),
+            'uri'          => $this->request->url($complete = true),
+            'user_agent'   => $this->request->header('user-agent'), 
+            'request_info' => $this->request->request(),
+            'header_info'  => $this->request->header($name = '', $default = null),
+        ];
+        
+        $info = $request_info + $info;
+        
         if ($this->config['json']) {
-            $info = $requestInfo + $info;
             return json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\r\n";
         }
 
-        array_unshift($info, "---------------------------------------------------------------\r\n[{$info['timestamp']}] ");
-        unset($info['timestamp']);
+        $delimiter = "---------------------------------  [{$info['date']}] {$info['ip']} {$info['method']} {$info['host']} {$info['uri']}  ------------------------------";
+        array_unshift($info,$delimiter);
+        unset($info['date'],$info['ip'],$info['method'],$info['host'],$info['uri']);
 
-        return implode("\r\n", $info) . "\r\n";
+        return "\r\n" . $this->array2string($info,"\r\n",":" ) . "\r\n";
     }
+
+    /**
+     * 将一个键值对数组转变成字符串
+     * 
+     * @param  array  $array [description]
+     * @param  string $sp    键值对分隔符
+     * @param  string $kv    键值分隔符
+     * @return [type]        [description]
+     */
+    public function array2string($array=[], $sp="\r\n", $kv="=>")
+    {
+        $string = [];
+        if($array && is_array($array)){
+            foreach ($array as $key=> $value){
+                if(empty($value)){
+                    continue;
+                }
+                if(is_array($value)){
+                    $string[] = $this->array2string($value,$sp,$kv);
+                }else{
+                    $string[] = $key.$kv.$value;
+                }
+            }
+        }
+        return implode($sp,$string);
+    }
+
 
 }
