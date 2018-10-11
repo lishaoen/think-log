@@ -10,6 +10,8 @@ composer require lishaoen/think-log
 用法：
 ~~~php
 $config = [
+    //应用名称
+    'app_name'     => '',
     // 日志记录方式，内置 file socket 支持扩展
     'type'         => 'File',
     // 日志保存目录

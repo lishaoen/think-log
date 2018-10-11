@@ -14,6 +14,7 @@ namespace lishaoen\log\driver;
 class File
 {
     protected $config = [
+        'app_name'    => '',
         // 时间记录格式
         'time_format' => ' c ',
         //是否单一文件日志
@@ -233,6 +234,7 @@ class File
         //请求基础信息
         $request_info = [
             'date'         => date($this->config['time_format']),
+            'app_name'     => $this->config['app_name'],
             'requestid'    => md5(time() + rand(0,9999)),
             'ip'           => $this->request->ip($type = 0, $adv = true),
             'domain'       => $this->request->domain($port = true),
