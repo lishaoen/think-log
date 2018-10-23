@@ -70,10 +70,13 @@ class File
 
         foreach ($log as $type => $val) {
             foreach ($val as $key=>$msg) {
-                $msg = json_encode($msg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (!is_string($msg)) {
+                    $msg = var_export($msg, true);
+                }
 
                 $info[$type][]     = $this->config['json'] ? $msg : '[ ' . $type . ' ] ' . $msg;
             }
+            
             //自定义字段处理
             if(!empty($log_custom[$type])){
                 foreach ($log_custom[$type] as $key => $value) {
@@ -130,7 +133,7 @@ class File
             if(!empty($info_custom)){
                 $info = array_merge($info_custom,$info);
             }
-
+            
             if (PHP_SAPI == 'cli') {
                 $message = $this->parseCliLog($info);
             } else {
@@ -260,9 +263,9 @@ class File
             'host'         => $this->request->host($strict = false),
             'method'       => $this->request->method($origin = false),
             'uri'          => $this->request->url($complete = true),
-            'user_agent'   => $this->request->header('user-agent'), 
-            'request_info' => $this->request->request(),
-            'header_info'  => $this->request->header($name = '', $default = null),
+            //'user_agent'   => $this->request->header('user-agent'), 
+            'request'      => $this->request->request(),
+            'header'       => $this->request->header($name = '', $default = null),
         ];
         
         $info = $request_info + $info;
