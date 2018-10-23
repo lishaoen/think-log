@@ -14,6 +14,9 @@ namespace lishaoen\log\driver;
 class File
 {
     protected $config = [
+        //全局唯一标识符
+        'app_guid'    => '',
+        //应用名称
         'app_name'    => '',
         // 时间记录格式
         'time_format' => ' c ',
@@ -53,39 +56,42 @@ class File
      * 日志写入接口
      * @access public
      * @param  array    $log    日志信息
-     * @param  array    $arr_custom 日志追加自定义数组字段信息
-     * @param  bool     $append 是否追加请求信息
+     * @param  array    $log_custom 日志追加自定义数组字段信息
      * @return bool
      */
-    public function save(array $log = [], $arr_custom = [], $append = false)
+    public function save(array $log = [], $log_custom = [])
     {
         $destination = $this->getMasterLogFile();
 
         $path = dirname($destination);
         !is_dir($path) && mkdir($path, 0755, true);
 
-        $info = [];
-        foreach ($log as $type => $val) {
-            foreach ($val as $msg) {
-                if (!is_string($msg)) {
-                    $msg = var_export($msg, true);
-                }
+        $info = $info_custom = [];
 
-                $info[$type][] = $this->config['json'] ? $msg : '[ ' . $type . ' ] ' . $msg;
+        foreach ($log as $type => $val) {
+            foreach ($val as $key=>$msg) {
+                $msg = json_encode($msg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                $info[$type][]     = $this->config['json'] ? $msg : '[ ' . $type . ' ] ' . $msg;
+            }
+            //自定义字段处理
+            if(!empty($log_custom[$type])){
+                foreach ($log_custom[$type] as $key => $value) {
+                    $info_custom[$type][] = $value;
+                }
             }
 
-            if (!$this->config['json'] && (true === $this->config['apart_level'] || in_array($type, $this->config['apart_level']))) {
+            if ((true === $this->config['apart_level'] || in_array($type, $this->config['apart_level']))) {
                 // 独立记录的日志级别
                 $filename = $this->getApartLevelFile($path, $type);
+                $this->write($info, $filename, $info_custom);
 
-                $this->write($info[$type], $filename, $arr_custom, true, $append);
-
-                unset($info[$type]);
+                unset($info[$type],$info_custom[$type]);
             }
         }
 
         if ($info) {
-            return $this->write($info, $destination, $arr_custom, false, $append);
+            return $this->write($info, $destination, $info_custom);
         }
 
         return true;
@@ -97,31 +103,43 @@ class File
      * @param  array     $message 日志信息
      * @param  string    $destination 日志文件
      * @param  array    $arr_custom 日志追加自定义数组字段信息
-     * @param  bool      $apart 是否独立文件写入
-     * @param  bool      $append 是否追加请求信息
      * @return bool
      */
-    protected function write($message, $destination, $log_custom = [], $apart = false, $append = false)
+    protected function write($message, $destination, $log_custom = [])
     {
         // 检测日志文件大小，超过配置大小则备份日志文件重新生成
         $this->checkLogSize($destination);
+        //定义变量
+        $info = $info_custom = [];
+        // 日志信息封装
+        $info['timestamp'] = date($this->config['time_format']);
+        
         // 日志信息封装
         foreach ($message as $type => $msg) {
-            $info['type']     = $type;
-            $info['message']  = is_array($msg) ? implode("|", $msg) : $msg;
+            //日志类型
+            $info['type'] = $type;
+            $info[$type] = is_array($msg) ? implode("\r\n", $msg) : $msg;
+            $info['message'][$type] = is_array($msg) ? implode("\r\n", $msg) : $msg;
+            
+            //自定义字段处理
+            if(!empty($log_custom[$type])){
+                foreach ($log_custom[$type] as $key=>$value) {
+                    $info_custom = $value;
+                }  
+            }
+            if(!empty($info_custom)){
+                $info = array_merge($info_custom,$info);
+            }
 
-            $info[$type]      = is_array($msg) ? implode("|", $msg) : $msg;
-        }
+            if (PHP_SAPI == 'cli') {
+                $message = $this->parseCliLog($info);
+            } else {
+                $message = $this->parseLog($info);
+            }
 
-        if(!empty($log_custom)){
-            $info = $info + $log_custom;
+            return error_log($message, 3, $destination);
         }
-        if (PHP_SAPI == 'cli') {
-            $message = $this->parseCliLog($info);
-        } else {
-            $message = $this->parseLog($info);
-        }
-        return error_log($message, 3, $destination);
+        
     }
 
     /**
@@ -212,8 +230,8 @@ class File
         if ($this->config['json']) {
             $message = json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\r\n";
         } else {
-            $now = $info['date'];
-            unset($info['date']);
+            $now = $info['timestamp'];
+            unset($info['timestamp']);
 
             $message = implode("\r\n", $info);
 
@@ -233,7 +251,8 @@ class File
     {
         //请求基础信息
         $request_info = [
-            'date'         => date($this->config['time_format']),
+            'timestamp'    => date($this->config['time_format']),
+            'app_guid'     => $this->config['app_guid'],
             'app_name'     => $this->config['app_name'],
             'requestid'    => md5(time() + rand(0,9999)),
             'ip'           => $this->request->ip($type = 0, $adv = true),
@@ -252,9 +271,9 @@ class File
             return json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\r\n";
         }
 
-        $delimiter = "---------------------------------  [{$info['date']}] {$info['ip']} {$info['method']} {$info['host']} {$info['uri']}  ------------------------------";
+        $delimiter = "---------------------------------  [{$info['timestamp']}] {$info['ip']} {$info['method']} {$info['host']} {$info['uri']}  ------------------------------";
         array_unshift($info,$delimiter);
-        unset($info['date'],$info['ip'],$info['method'],$info['host'],$info['uri']);
+        unset($info['timestamp'],$info['ip'],$info['method'],$info['host'],$info['uri']);
 
         return "\r\n" . $this->array2string($info,"\r\n",":" ) . "\r\n";
     }
