@@ -3,7 +3,7 @@
     "description": "log package for thinkphp5.1",
     "license": "Apache-2.0",
     "minimum-stability": "stable",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "authors": [
         {
             "name": "lishaoen",

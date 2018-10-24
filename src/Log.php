@@ -129,7 +129,7 @@ class Log implements LoggerInterface
      * @param  array  $log_custom 日志追加自定义数组字段信息
      * @return $this
      */
-    public function record($msg, $type = 'info', $context = [],$log_custom = [])
+    public function record($msg, $type = 'info', $log_custom = [], $context = [])
     {
         if (!$this->allowWrite) {
             return;
