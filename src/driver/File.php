@@ -121,26 +121,27 @@ class File
         foreach ($message as $type => $msg) {
             //日志类型
             $info['type'] = $type;
-            $info[$type] = is_array($msg) ? implode("\r\n", $msg) : $msg;
-            $info['message'][$type] = is_array($msg) ? implode("\r\n", $msg) : $msg;
+            $info[$type]  = is_array($msg) ? implode("|", $msg) : $msg;
+            $info['message'][$type] = is_array($msg) ? implode("|", $msg) : $msg;
             
             //自定义字段处理
             if(!empty($log_custom[$type])){
                 foreach ($log_custom[$type] as $key=>$value) {
-                    $info_custom = $value;
+                    if(!empty($value)){
+                        $info_custom = is_array($value) ? array_merge($info_custom,$value) : $value;
+                    }
                 }  
             }
             if(!empty($info_custom)){
                 $info = array_merge($info_custom,$info);
             }
-            
             if (PHP_SAPI == 'cli') {
                 $message = $this->parseCliLog($info);
             } else {
                 $message = $this->parseLog($info);
             }
 
-            return error_log($message, 3, $destination);
+            return error_log($message, 3, $destination);  
         }
         
     }
