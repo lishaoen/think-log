@@ -38,7 +38,10 @@ $config = [
 
 $log = new \lishaoen\log\Log($config);
 
-$log->write($msg='error info',$type ='error',$log_custom = [], $context = []);
+$log->record('error info','error');
+$log->error('error info');
+$log->info('log info');
+$log->save();
 或
 $log->record($msg='error info',$type ='error',$log_custom = [], $context = [])->save();
 $log->error($msg='error info',$log_custom = [],$context = [])->save();
