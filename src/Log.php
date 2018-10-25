@@ -31,7 +31,6 @@ class Log implements LoggerInterface
     const DEBUG     = 'debug';
     const SQL       = 'sql';
     const LOGIN     = 'login';
-    const OPERATION = 'operation';
 
     /**
      * 日志信息
@@ -64,22 +63,26 @@ class Log implements LoggerInterface
     protected $allowWrite = true;
 
     /**
-     * 自定义数组日志信息
+     * 自定义信息
      * @var array
      */
-    protected $log_custom = [];
+    protected $custominfo = [];
 
     /**
      * 实例化并传入参数
      * @param array $config [description]
      */
-    public function __construct($config = [])
+    public function __construct($config = [],$custominfo = [])
     {
         if (is_array($config)) {
             $this->config = array_merge($this->config, $config);
         }
 
-        return $this->init($this->config);
+        if (is_array($custominfo)) {
+            $this->custominfo = array_merge($this->custominfo, $custominfo);
+        }
+
+        return $this->init($this->config,$this->custominfo);
     }
 
     /**
@@ -88,7 +91,7 @@ class Log implements LoggerInterface
      * @param  array $config
      * @return $this
      */
-    public function init($config = [])
+    public function init($config = [],$custominfo = [])
     {
         $type = isset($config['type']) ? $config['type'] : 'File';
 
@@ -101,11 +104,33 @@ class Log implements LoggerInterface
 
         $class = false !== strpos($type, '\\') ? $type : '\\lishaoen\\log\\driver\\' . ucwords($type);
         if (class_exists($class)) {
-            $this->driver = new $class($config);
+            $this->driver = new $class($config,$custominfo);
         }else{
             throw new Exception('class not exists:' . $class, $class);
         }
 
+        return $this;
+    }
+
+    /**
+     * 设置用户信息
+     *
+     * @param string $code_name code名称
+     */
+    public function setCustominfo($custominfo = [])
+    {
+        $result = $this->driver->setCustominfo($custominfo);
+        return $this;
+    }
+
+    /**
+     * 设置request信息
+     *
+     * @param string $code_name code名称
+     */
+    public function setRequest($request = [])
+    {
+        $result = $this->driver->setRequest($request);
         return $this;
     }
 
@@ -126,10 +151,10 @@ class Log implements LoggerInterface
      * @param  mixed  $msg       日志信息
      * @param  string $type      日志级别
      * @param  array  $context   替换内容
-     * @param  array  $log_custom 日志追加自定义数组字段信息
+     * @param  array  $custominfo 日志追加自定义数组字段信息
      * @return $this
      */
-    public function record($msg, $type = 'info', $log_custom = [], $context = [])
+    public function record($msg, $type = 'info', $context = [],$custominfo=[])
     {
         if (!$this->allowWrite) {
             return;
@@ -142,12 +167,16 @@ class Log implements LoggerInterface
             $msg = strtr($msg, $replace);
         }
         
+        //设置用户信息
+        if(!empty($custominfo)){
+            $this->driver->setCustominfo($custominfo);
+        }
+
         if (PHP_SAPI == 'cli') {
             // 命令行日志实时写入
-            $this->write($msg, $type, $log_custom,true);
+            $this->write($msg, $type,true);
         } else {
             $this->log[$type][]           = $msg;
-            $this->log_custom[$type][]    = $log_custom;
         }
         
         return $this;
@@ -224,21 +253,17 @@ class Log implements LoggerInterface
         if (empty($this->config['level'])) { 
             // 获取全部日志
             $log        = $this->log;
-            $log_custom = $this->log_custom;
         } else {
             // 记录允许级别
             $log        = [];
-            $log_custom = [];
             foreach ($this->config['level'] as $level) {
                 if (isset($this->log[$level])) {
                     $log[$level]        = $this->log[$level];
-                    $log_custom[$level] = $this->log_custom[$level];
                 }
-
             }
         }
 
-        $result = $this->driver->save($log, $log_custom, true);
+        $result = $this->driver->save($log);
 
         if ($result) {
             $this->log = [];
@@ -252,11 +277,10 @@ class Log implements LoggerInterface
      * @access public
      * @param  mixed  $msg   调试信息
      * @param  string $type  日志级别
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  bool   $force 是否强制写入
      * @return bool
      */
-    public function write($msg, $type = 'info', $log_custom = [], $force = false)
+    public function write($msg, $type = 'info', $force = false,$custominfo=[])
     {
         // 封装日志信息
         if (empty($this->config['level'])) {
@@ -264,13 +288,17 @@ class Log implements LoggerInterface
         }
 
         if (true === $force || in_array($type, $this->config['level'])) {
+            //设置用户信息
+            if(!empty($custominfo)){
+                $this->driver->setCustominfo($custominfo);
+            }
+
             $log[$type][]        = $msg;
-            $log_custom[$type][] = $log_custom;
         } else {
             return false;
         }
         // 写入日志
-        return $this->driver->save($log, $log_custom, false);
+        return $this->driver->save($log);
     }
 
     /**
@@ -278,158 +306,135 @@ class Log implements LoggerInterface
      * @access public
      * @param  string $level     日志级别
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function log($level, $message, array $context = [], $log_custom = [])
+    public function log($level, $message, array $context = [],$custominfo=[])
     {
-        $this->record($message, $level, $context, $log_custom);
+        $this->record($message, $level, $context,$custominfo);
     }
 
     /**
      * 记录emergency信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function emergency($message, array $context = [],$log_custom = [])
+    public function emergency($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录警报信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function alert($message, array $context = [], $log_custom = [])
+    public function alert($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录紧急情况
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function critical($message, array $context = [], $log_custom = [])
+    public function critical($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录错误信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function error($message, array $context = [], $log_custom = [])
+    public function error($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录warning信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function warning($message, array $context = [], $log_custom = [])
+    public function warning($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录notice信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function notice($message, array $context = [], $log_custom = [])
+    public function notice($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录一般信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function info($message, array $context = [], $log_custom = [])
+    public function info($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录调试信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function debug($message, array $context = [], $log_custom = [])
+    public function debug($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录sql信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function sql($message, array $context = [], $log_custom = [])
+    public function sql($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
     /**
      * 记录登录信息
      * @access public
      * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
      * @param  array  $context   替换内容
      * @return void
      */
-    public function login($message, array $context = [], $log_custom = [])
+    public function login($message, array $context = [],$custominfo=[])
     {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
     }
 
-    /**
-     * 记录操作信息
-     * @access public
-     * @param  mixed  $message   日志信息
-     * @param  array  $log_custom 日志追加自定义数组字段信息
-     * @param  array  $context   替换内容
-     * @return void
-     */
-    public function operation($message, array $context = [], $log_custom = [])
-    {
-        $this->log(__FUNCTION__, $message, $context, $log_custom);
-    }
-
+    
     public function __debugInfo()
     {
         $data = get_object_vars($this);

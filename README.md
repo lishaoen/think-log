@@ -36,15 +36,15 @@ $config = [
     'max_files'   => 0,
 ];
 
-$log = new \lishaoen\log\Log($config);
+$log = new \lishaoen\log\Log($config,$custominfo);
 
-$log->record('error info','error');
-$log->error('error info');
-$log->info('log info');
+$log->record('error info','error', $context = [],$custominfo = []);
+$log->error('error info', $context = [],$custominfo = []);
+$log->info('log info', $context = [],$custominfo = []);
 $log->save();
 或
-$log->record($msg='error info',$type ='error',$log_custom = [], $context = [])->save();
-$log->error($msg='error info',$log_custom = [],$context = [])->save();
+$log->record($msg='error info',$type ='error', $context = [],$custominfo = [])->save();
+$log->error($msg='error info',$context = [],$custominfo = [])->save();
 
 
 方法参数说明：

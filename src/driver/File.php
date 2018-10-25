@@ -13,6 +13,10 @@ namespace lishaoen\log\driver;
  */
 class File
 {
+    /**
+     * 配置信息
+     * @var array
+     */
     protected $config = [
         //全局唯一标识符
         'app_guid'    => '',
@@ -34,67 +38,108 @@ class File
         'json'        => false,
     ];
 
+    /**
+     * request信息
+     * @var array
+     */
     protected $request;
 
+    /**
+     * 用户信息
+     * @var array
+     */
+    protected $custominfo = [
+        'login_error' => '',
+        'uid'         => '',
+        'username'    => '',
+        'nickname'    => '',
+    ];
+    
 
     // 实例化并传入参数
-    public function __construct($config = [])
+    public function __construct($config = [],$custominfo = [])
     {
-        $this->request = new \lishaoen\log\Request();
         
+        //日志配置
         if (is_array($config)) {
             $this->config = array_merge($this->config, $config);
         }
+        //用户信息配置
+        if (!empty($custominfo) && is_array($custominfo)) {
+            $this->custominfo = array_merge($this->custominfo, $custominfo);
+        }
+        //日志存储路径
         if (empty($this->config['path'])) {
             $this->config['path'] = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR;
         } elseif (substr($this->config['path'], -1) != DIRECTORY_SEPARATOR) {
             $this->config['path'] .= DIRECTORY_SEPARATOR;
         }
+        //请求信息
+        $this->request = new \lishaoen\log\Request();
+    }
+
+
+    /**
+     * 设置用户信息
+     *
+     * @param string $code_name code名称
+     */
+    public function setCustominfo($custominfo = [])
+    {
+        //用户信息配置
+        if (!empty($custominfo) && is_array($custominfo)) {
+            $this->custominfo = array_merge($this->custominfo, $custominfo);
+        }
+        return $this;
+    }
+
+    /**
+     * 设置request信息
+     *
+     * @param string $code_name code名称
+     */
+    public function setRequest($request = [])
+    {
+        //用户信息配置
+        if (!empty($request) && is_array($request)) {
+            $this->request = array_merge($this->request, $request);
+        }
+        return $this;
     }
 
     /**
      * 日志写入接口
      * @access public
      * @param  array    $log    日志信息
-     * @param  array    $log_custom 日志追加自定义数组字段信息
      * @return bool
      */
-    public function save(array $log = [], $log_custom = [])
+    public function save(array $log = [])
     {
         $destination = $this->getMasterLogFile();
 
         $path = dirname($destination);
         !is_dir($path) && mkdir($path, 0755, true);
 
-        $info = $info_custom = [];
-
+        $info = [];
         foreach ($log as $type => $val) {
+            $level = '';
             foreach ($val as $key=>$msg) {
                 if (!is_string($msg)) {
                     $msg = var_export($msg, true);
                 }
-
                 $info[$type][]     = $this->config['json'] ? $msg : '[ ' . $type . ' ] ' . $msg;
-            }
-            
-            //自定义字段处理
-            if(!empty($log_custom[$type])){
-                foreach ($log_custom[$type] as $key => $value) {
-                    $info_custom[$type][] = $value;
-                }
             }
 
             if ((true === $this->config['apart_level'] || in_array($type, $this->config['apart_level']))) {
                 // 独立记录的日志级别
                 $filename = $this->getApartLevelFile($path, $type);
-                $this->write($info, $filename, $info_custom);
-
-                unset($info[$type],$info_custom[$type]);
+                $this->write($info, $filename);
+                unset($info[$type]);
             }
         }
 
         if ($info) {
-            return $this->write($info, $destination, $info_custom);
+            return $this->write($info, $destination);
         }
 
         return true;
@@ -105,10 +150,9 @@ class File
      * @access protected
      * @param  array     $message 日志信息
      * @param  string    $destination 日志文件
-     * @param  array    $arr_custom 日志追加自定义数组字段信息
      * @return bool
      */
-    protected function write($message, $destination, $log_custom = [])
+    protected function write($message, $destination)
     {
         // 检测日志文件大小，超过配置大小则备份日志文件重新生成
         $this->checkLogSize($destination);
@@ -119,31 +163,19 @@ class File
         
         // 日志信息封装
         foreach ($message as $type => $msg) {
+            $info['log_type'][]  =  $type;   
             //日志类型
-            $info['type'] = $type;
-            $info[$type]  = is_array($msg) ? implode("|", $msg) : $msg;
-            $info['message'][$type] = is_array($msg) ? implode("|", $msg) : $msg;
-            
-            //自定义字段处理
-            if(!empty($log_custom[$type])){
-                foreach ($log_custom[$type] as $key=>$value) {
-                    if(!empty($value)){
-                        $info_custom = is_array($value) ? array_merge($info_custom,$value) : $value;
-                    }
-                }  
-            }
-            if(!empty($info_custom)){
-                $info = array_merge($info_custom,$info);
-            }
-            if (PHP_SAPI == 'cli') {
-                $message = $this->parseCliLog($info);
-            } else {
-                $message = $this->parseLog($info);
-            }
-
-            return error_log($message, 3, $destination);  
+            $info[$type]         = is_array($msg) ? implode("|", $msg) : $msg;
         }
         
+        if (PHP_SAPI == 'cli') {
+            $message = $this->parseCliLog($info);
+        } else {
+            $message = $this->parseLog($info);
+        } 
+        
+        return error_log($message, 3, $destination);
+
     }
 
     /**
@@ -258,7 +290,6 @@ class File
             'timestamp'    => date($this->config['time_format']),
             'app_guid'     => $this->config['app_guid'],
             'app_name'     => $this->config['app_name'],
-            'requestid'    => md5(time() + rand(0,9999)),
             'ip'           => $this->request->ip($type = 0, $adv = true),
             'domain'       => $this->request->domain($port = true),
             'host'         => $this->request->host($strict = false),
@@ -268,8 +299,9 @@ class File
             'request'      => $this->request->request(),
             'header'       => $this->request->header($name = '', $default = null),
         ];
-        
-        $info = $request_info + $info;
+        //自定义信息
+        $custominfo = $this->custominfo;
+        $info = $request_info + $custominfo + $info;
         
         if ($this->config['json']) {
             return json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\r\n";
