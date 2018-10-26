@@ -295,7 +295,7 @@ class File
             'host'         => $this->request->host($strict = false),
             'method'       => $this->request->method($origin = false),
             'uri'          => $this->request->url($complete = true),
-            //'user_agent'   => $this->request->header('user-agent'), 
+            'user_agent'   => $this->request->header('user-agent'), 
             'request'      => $this->request->request(),
             'header'       => $this->request->header($name = '', $default = null),
         ];
