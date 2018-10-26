@@ -30,7 +30,9 @@ class Log implements LoggerInterface
     const INFO      = 'info';
     const DEBUG     = 'debug';
     const SQL       = 'sql';
-    const LOGIN     = 'login';
+
+    const LOGIN      = 'login';
+    const LOGINERROR = 'loginerror';
 
     /**
      * 日志信息
@@ -430,6 +432,18 @@ class Log implements LoggerInterface
      * @return void
      */
     public function login($message, array $context = [],$custominfo=[])
+    {
+        $this->log(__FUNCTION__, $message, $context,$custominfo);
+    }
+
+    /**
+     * 记录登录失败信息
+     * @access public
+     * @param  mixed  $message   日志信息
+     * @param  array  $context   替换内容
+     * @return void
+     */
+    public function loginerror($message, array $context = [],$custominfo=[])
     {
         $this->log(__FUNCTION__, $message, $context,$custominfo);
     }

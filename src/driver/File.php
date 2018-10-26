@@ -49,7 +49,6 @@ class File
      * @var array
      */
     protected $custominfo = [
-        'login_error' => '',
         'uid'         => '',
         'username'    => '',
         'nickname'    => '',
@@ -165,7 +164,7 @@ class File
         foreach ($message as $type => $msg) {
             $info['log_type'][]  =  $type;   
             //日志类型
-            $info[$type]         = is_array($msg) ? implode("|", $msg) : $msg;
+            $info[$type]         = is_array($msg) ? implode("\r\n", $msg) : $msg;
         }
         
         if (PHP_SAPI == 'cli') {
@@ -184,10 +183,9 @@ class File
      * @return string
      */
     protected function getMasterLogFile()
-    {
+    {   
         if ($this->config['max_files']) {
             $files = glob($this->config['path'] . '*.log');
-
             try {
                 if (count($files) > $this->config['max_files']) {
                     unlink($files[0]);
@@ -295,7 +293,7 @@ class File
             'host'         => $this->request->host($strict = false),
             'method'       => $this->request->method($origin = false),
             'uri'          => $this->request->url($complete = true),
-            'user_agent'   => $this->request->header('user-agent'), 
+            //'user_agent'   => $this->request->header('user-agent'), 
             'request'      => $this->request->request(),
             'header'       => $this->request->header($name = '', $default = null),
         ];
